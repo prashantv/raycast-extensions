@@ -8,6 +8,7 @@ import {
   openExtensionPreferences,
   getPreferenceValues,
   Detail,
+  Keyboard,
 } from "@raycast/api";
 import { Clipboard, showHUD } from "@raycast/api";
 import { getEmails } from "./lib/gmail";
@@ -15,6 +16,11 @@ import { processEmails } from "./lib/utils";
 import { VerificationCode } from "./lib/types";
 import AuthWrapper from "./components/auth-wrapper";
 import React from "react";
+
+const isMacOS = process.platform === "darwin";
+
+// Platform-aware keyboard modifier
+const primaryModifier: Keyboard.KeyModifier = isMacOS ? "cmd" : "ctrl";
 
 export default function OTPInbox() {
   const [frontmostApp, setFrontmostApp] = React.useState<string>("");
@@ -40,8 +46,10 @@ export default function OTPInbox() {
   React.useEffect(() => {
     (async () => {
       try {
-        // Set the frontmost app
-        setFrontmostApp((await getFrontmostApplication()).name);
+        // Set the frontmost app (macOS only)
+        if (isMacOS) {
+          setFrontmostApp((await getFrontmostApplication()).name);
+        }
 
         // Get verification codes
         await getVerificationCodes();
@@ -72,33 +80,46 @@ export default function OTPInbox() {
               ]}
               actions={
                 <ActionPanel>
-                  <Action
-                    title={`Paste to ${frontmostApp}`}
-                    icon={{ source: Icon.Paperclip, tintColor: Color.PrimaryText }}
-                    onAction={async () => {
-                      const app = await getFrontmostApplication();
-                      await Clipboard.paste(code.code!);
-                      await showHUD(`Pasted code for ${code.sender.name} to ${app.name}`, { clearRootSearch: true });
-                    }}
-                  />
-                  <Action
-                    title={`Copy to Clipboard`}
-                    icon={{ source: Icon.Clipboard }}
-                    onAction={async () => {
-                      await Clipboard.copy(code.code!);
-                      await showHUD(`Copied code for ${code.sender.name} to clipboard`, { clearRootSearch: true });
-                    }}
-                  />
+                  {isMacOS ? (
+                    <>
+                      <Action
+                        title={`Paste to ${frontmostApp}`}
+                        icon={{ source: Icon.Paperclip, tintColor: Color.PrimaryText }}
+                        onAction={async () => {
+                          const app = await getFrontmostApplication();
+                          await Clipboard.paste(code.code!);
+                          await showHUD(`Pasted code for ${code.sender.name} to ${app.name}`, { clearRootSearch: true });
+                        }}
+                      />
+                      <Action
+                        title="Copy to Clipboard"
+                        icon={{ source: Icon.Clipboard }}
+                        onAction={async () => {
+                          await Clipboard.copy(code.code!);
+                          await showHUD(`Copied code for ${code.sender.name} to clipboard`, { clearRootSearch: true });
+                        }}
+                      />
+                    </>
+                  ) : (
+                    <Action
+                      title="Copy to Clipboard"
+                      icon={{ source: Icon.Clipboard, tintColor: Color.PrimaryText }}
+                      onAction={async () => {
+                        await Clipboard.copy(code.code!);
+                        await showHUD(`Copied code for ${code.sender.name} to clipboard`, { clearRootSearch: true });
+                      }}
+                    />
+                  )}
                   <Action.Push
                     title="Show Email Content"
                     icon={{ source: Icon.Text }}
-                    shortcut={{ modifiers: ["cmd"], key: "e" }}
+                    shortcut={{ modifiers: [primaryModifier], key: "e" }}
                     target={<Detail markdown={`### Email from ${code.sender.name}\n\n${code.emailText}`} />}
                   />
                   <Action
                     title="Refresh"
                     icon={{ source: Icon.ArrowClockwise }}
-                    shortcut={{ modifiers: ["cmd"], key: "r" }}
+                    shortcut={{ modifiers: [primaryModifier], key: "r" }}
                     onAction={async () => {
                       await getVerificationCodes();
                     }}
@@ -129,7 +150,7 @@ export default function OTPInbox() {
                   <Action.Push
                     title="Show Email Content"
                     icon={{ source: Icon.Text }}
-                    shortcut={{ modifiers: ["cmd"], key: "e" }}
+                    shortcut={{ modifiers: [primaryModifier], key: "e" }}
                     target={<Detail markdown={`### Email from ${email.sender.name}\n\n${email.emailText}`} />}
                   />
                   <Action
